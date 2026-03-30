@@ -6,46 +6,48 @@ import os
 
 def generate_pdf_report(result):
     """
-    Industrial-grade PDF Generator with Unicode Injection.
-    集成 Unicode 注入的工业级 PDF 生成器。
+    Industrial-grade PDF generator: Fixed for Chinese rendering space issues.
+    工业级 PDF 生成器：修复中文渲染空间不足的问题。
     """
-    pdf = FPDF()
+    from fpdf import FPDF
+    
+    # 1. 显式设置边距，确保有足够空间
+    pdf = FPDF(orientation="P", unit="mm", format="A4")
+    pdf.set_margins(left=15, top=15, right=15) 
     pdf.add_page()
     
-    # [关键] 动态路径检查与字体注册
     font_path = os.path.join("fonts", "SimSun.ttf")
     
     if os.path.exists(font_path):
         try:
-            # 注册中文字体：指定别名为 'ChineseMain'
             pdf.add_font('ChineseMain', '', font_path)
             pdf.set_font('ChineseMain', '', 14)
         except Exception as e:
-            st.error(f"Font loading error: {e}")
+            st.error(f"Font Error: {e}")
             pdf.set_font("Arial", 'B', 16)
-    else:
-        # 路径缺失时的 fallback 提示
-        st.warning(f"Font asset missing at {font_path}. Using standard Arial.")
-        pdf.set_font("Arial", 'B', 16)
-
-    # --- 开始写入内容 ---
-    pdf.cell(0, 10, txt="Prism-QA Translation Audit Report | 翻译审计报告", ln=True, align='C')
+    
+    # --- 标题写入 ---
+    pdf.cell(w=0, h=10, txt="Prism-QA 翻译审计报告", ln=True, align='C')
     pdf.ln(10)
 
-    # 1. Scores | 评分
-    pdf.set_font('ChineseMain' if os.path.exists(font_path) else 'Arial', '', 12)
+    # --- 核心内容写入 (关键改动：使用 w=0 和更稳健的 multi_cell) ---
+    pdf.set_font('ChineseMain', '', 12) if os.path.exists(font_path) else pdf.set_font("Arial", '', 12)
+    
+    # 写入得分
+    pdf.cell(w=0, h=10, txt="[1] 评分统计 (Performance Scores):", ln=True)
     scores = result.get('scores', {})
-    pdf.cell(0, 10, txt="Performance Scores | 评分统计:", ln=True)
     for metric, score in scores.items():
-        pdf.cell(0, 8, txt=f"- {metric}: {score}", ln=True)
-
-    # 2. Deductions | 扣分诊断
+        pdf.cell(w=0, h=8, txt=f"- {metric}: {score}", ln=True)
+    
     pdf.ln(5)
-    pdf.cell(0, 10, txt="Deduction Diagnostics | 扣分诊断细节:", ln=True)
+    
+    # 写入诊断细节
+    pdf.cell(w=0, h=10, txt="[2] 扣分诊断 (Diagnostics):", ln=True)
     for item in result.get('deductions', []):
-        # 工业级多行文本处理
-        reason_text = f"[{item.get('category')}] -{item.get('point')}pts: {item.get('reason')}"
-        pdf.multi_cell(0, 8, txt=reason_text)
+        reason_text = f"• [{item.get('category')}] 扣{item.get('point')}分: {item.get('reason')}"
+        # 关键：multi_cell 的 w=0 代表使用当前边距到右边距的全部宽度
+        pdf.multi_cell(w=0, h=8, txt=reason_text)
+        pdf.ln(2)
 
     return pdf.output()
 
