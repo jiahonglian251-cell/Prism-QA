@@ -2,100 +2,101 @@ import streamlit as st
 import pandas as pd
 from fpdf import FPDF
 from core import PrismCore
-import io
+import os
 
-# 页面配置
-st.set_page_config(page_title="Prism-QA Visual Pro", page_icon="💎", layout="wide")
-
-def generate_pdf(result):
-    """根据审计结果生成 PDF 字节流"""
+def generate_pdf_report(result):
+    """
+    Industrial-grade PDF Generator with Unicode Injection.
+    集成 Unicode 注入的工业级 PDF 生成器。
+    """
     pdf = FPDF()
     pdf.add_page()
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, txt="Prism-QA Translation Audit Report", ln=True, align='C')
+    
+    # [关键] 动态路径检查与字体注册
+    font_path = os.path.join("fonts", "SimSun.ttf")
+    
+    if os.path.exists(font_path):
+        try:
+            # 注册中文字体：指定别名为 'ChineseMain'
+            pdf.add_font('ChineseMain', '', font_path)
+            pdf.set_font('ChineseMain', '', 14)
+        except Exception as e:
+            st.error(f"Font loading error: {e}")
+            pdf.set_font("Arial", 'B', 16)
+    else:
+        # 路径缺失时的 fallback 提示
+        st.warning(f"Font asset missing at {font_path}. Using standard Arial.")
+        pdf.set_font("Arial", 'B', 16)
+
+    # --- 开始写入内容 ---
+    pdf.cell(0, 10, txt="Prism-QA Translation Audit Report | 翻译审计报告", ln=True, align='C')
     pdf.ln(10)
-    
-    # 1. 核心得分
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(200, 10, txt="1. Overall Performance", ln=True)
-    pdf.set_font("Arial", '', 11)
+
+    # 1. Scores | 评分
+    pdf.set_font('ChineseMain' if os.path.exists(font_path) else 'Arial', '', 12)
     scores = result.get('scores', {})
+    pdf.cell(0, 10, txt="Performance Scores | 评分统计:", ln=True)
     for metric, score in scores.items():
-        pdf.cell(200, 8, txt=f"- {metric}: {score}", ln=True)
+        pdf.cell(0, 8, txt=f"- {metric}: {score}", ln=True)
+
+    # 2. Deductions | 扣分诊断
     pdf.ln(5)
-    
-    # 2. 扣分详情
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(200, 10, txt="2. Deduction Details", ln=True)
-    pdf.set_font("Arial", '', 10)
-    for issue in result.get('deductions', []):
-        text = f"[{issue.get('point', 'N/A')}] {issue.get('category', 'Error')}: {issue.get('reason', '')}"
-        pdf.multi_cell(0, 8, txt=text)
-    
-    # 返回二进制数据
-    return pdf.output(dest='S').encode('latin-1')
+    pdf.cell(0, 10, txt="Deduction Diagnostics | 扣分诊断细节:", ln=True)
+    for item in result.get('deductions', []):
+        # 工业级多行文本处理
+        reason_text = f"[{item.get('category')}] -{item.get('point')}pts: {item.get('reason')}"
+        pdf.multi_cell(0, 8, txt=reason_text)
+
+    return pdf.output()
 
 def main():
-    st.title("💎 Prism-QA: Visual Translation Auditor")
+    st.set_page_config(page_title="Prism-QA Visual Pro", layout="wide")
+    st.title("💎 Prism-QA Visual Pro")
     
-    # 侧边栏配置
+    # 侧边栏与输入逻辑 (保持之前的工业级双语设置)
     with st.sidebar:
         st.header("⚙️ Configuration")
         src_lang = st.selectbox("Source Language", ["Japanese", "English", "Chinese"])
         tgt_lang = st.selectbox("Target Language", ["Chinese", "English", "Japanese"])
-        st.info("Powered by DeepSeek-V3 & Pandas")
 
-    # 主界面输入
-    col1, col2 = st.columns(2)
-    with col1:
-        source_text = st.text_area("Source Text (Original)", height=200)
-    with col2:
-        target_text = st.text_area("Target Text (Translation)", height=200)
+    source_text = st.text_area("Source Text", height=200)
+    target_text = st.text_area("Target Text", height=200)
 
-    if st.button("🚀 Start Professional Audit"):
+    if st.button("🚀 Run Full Audit | 运行全维度审计", use_container_width=True):
         if source_text and target_text:
-            with st.spinner("Analyzing with DeepSeek-V3..."):
+            with st.spinner("Processing..."):
                 core = PrismCore()
                 result = core.audit(source_text, target_text, src_lang, tgt_lang)
                 
                 if result:
-                    # --- 1. 显示得分统计 ---
-                    st.markdown("---")
-                    st.subheader("📊 Performance Spectrum")
+                    # A. 可视化图表
+                    st.subheader("📊 Performance Spectrum | 性能可视化")
                     scores = result.get('scores', {})
                     df = pd.DataFrame({"Metric": list(scores.keys()), "Score": list(scores.values())}).set_index("Metric")
                     if "Overall Score" in df.index:
-                        df_chart = df.drop(index="Overall Score")
-                        st.bar_chart(df_chart)
+                        st.bar_chart(df.drop(index="Overall Score"))
                     
-                    # --- 2. 显示扣分详情  ---
-                    st.subheader("🚫 Deduction Details")
-                    for issue in result.get('deductions', []):
-                        with st.expander(f"⚠️ {issue.get('point')} | {issue.get('category')}"):
-                            st.write(f"**Reason:** {issue.get('reason')}")
-                            st.write(f"**Location:** `{issue.get('location')}`")
+                    # B. 扣分详情
+                    st.subheader("🚫 Audit Diagnostics | 审计详情")
+                    for item in result.get('deductions', []):
+                        with st.expander(f"⚠️ {item.get('category')} (-{item.get('point')} pts)"):
+                            st.write(f"**Reason:** {item.get('reason')}")
 
-                    # --- 3. 显示修改建议 ---
-                    st.subheader("💡 Refined Suggestion")
-                    st.info(result.get('refined_suggestion', "No suggestion available."))
-
-                    # --- 4. 关键：下载 PDF 报告按钮 ---
-                    st.markdown("---")
+                    # C. 报告导出 (关键下载入口)
+                    st.divider()
                     try:
-                        pdf_data = generate_pdf(result)
+                        pdf_data = generate_pdf_report(result)
                         st.download_button(
-                            label="📥 Download PDF Audit Report",
-                            data=pdf_data,
-                            file_name="Prism_QA_Audit_Report.pdf",
-                            mime="application/pdf"
+                            label="📥 Download Professional PDF Report (Support Chinese)",
+                            data=bytes(pdf_data),
+                            file_name="Prism_QA_Report.pdf",
+                            mime="application/pdf",
+                            use_container_width=True
                         )
-                        st.success("Report ready for download!")
                     except Exception as e:
-                        st.error(f"PDF Export Error: {e}")
+                        st.error(f"PDF Output Error: {e}")
                 else:
-                    st.error("Audit failed. Please check your API connection.")
-        else:
-            st.warning("Please enter both source and target text.")
+                    st.error("Audit Engine Error.")
 
 if __name__ == "__main__":
     main()
