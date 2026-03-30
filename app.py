@@ -1,125 +1,101 @@
 import streamlit as st
 import pandas as pd
+from fpdf import FPDF
 from core import PrismCore
+import io
 
-# [ZH] 页面高级配置 [EN] Page high-level configuration
+# 页面配置
 st.set_page_config(page_title="Prism-QA Visual Pro", page_icon="💎", layout="wide")
 
-def main():
-    st.title("💎 Prism-QA: Visual Audit Dashboard")
-    st.markdown("---")
+def generate_pdf(result):
+    """根据审计结果生成 PDF 字节流"""
+    pdf = FPDF()
+    pdf.add_page()
+    pdf.set_font("Arial", 'B', 16)
+    pdf.cell(200, 10, txt="Prism-QA Translation Audit Report", ln=True, align='C')
+    pdf.ln(10)
+    
+    # 1. 核心得分
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(200, 10, txt="1. Overall Performance", ln=True)
+    pdf.set_font("Arial", '', 11)
+    scores = result.get('scores', {})
+    for metric, score in scores.items():
+        pdf.cell(200, 8, txt=f"- {metric}: {score}", ln=True)
+    pdf.ln(5)
+    
+    # 2. 扣分详情
+    pdf.set_font("Arial", 'B', 12)
+    pdf.cell(200, 10, txt="2. Deduction Details", ln=True)
+    pdf.set_font("Arial", '', 10)
+    for issue in result.get('deductions', []):
+        text = f"[{issue.get('point', 'N/A')}] {issue.get('category', 'Error')}: {issue.get('reason', '')}"
+        pdf.multi_cell(0, 8, txt=text)
+    
+    # 返回二进制数据
+    return pdf.output(dest='S').encode('latin-1')
 
-    # [ZH] 侧边栏设置 [EN] Sidebar settings
+def main():
+    st.title("💎 Prism-QA: Visual Translation Auditor")
+    
+    # 侧边栏配置
     with st.sidebar:
         st.header("⚙️ Configuration")
-        src_lang = st.selectbox("Source Language", ["Chinese", "English", "Japanese"])
-        tgt_lang = st.selectbox("Target Language", ["English", "Chinese", "Japanese"])
-        st.divider()
-        st.caption("Powered by DeepSeek-V3 & Pandas")
+        src_lang = st.selectbox("Source Language", ["Japanese", "English", "Chinese"])
+        tgt_lang = st.selectbox("Target Language", ["Chinese", "English", "Japanese"])
+        st.info("Powered by DeepSeek-V3 & Pandas")
 
-    # [ZH] 输入区域 [EN] Input area
-    col_in_1, col_in_2 = st.columns(2)
-    source_text = col_in_1.text_area("Source Text", height=150)
-    target_text = col_in_2.text_area("Translated Text", height=150)
+    # 主界面输入
+    col1, col2 = st.columns(2)
+    with col1:
+        source_text = st.text_area("Source Text (Original)", height=200)
+    with col2:
+        target_text = st.text_area("Target Text (Translation)", height=200)
 
-    if st.button("🚀 Run Visual Spectrum Audit", use_container_width=True):
+    if st.button("🚀 Start Professional Audit"):
         if source_text and target_text:
-            worker = PrismCore()
-            with st.spinner("Analyzing linguistic dimensions..."):
-                result = worker.audit(source_text, target_text, src_lang, tgt_lang)
-            
-            if "error" in result:
-                st.error(f"Audit Interrupted: {result['error']}")
-            else:
-                render_visuals(result)
+            with st.spinner("Analyzing with DeepSeek-V3..."):
+                core = PrismCore()
+                result = core.audit(source_text, target_text, src_lang, tgt_lang)
+                
+                if result:
+                    # --- 1. 显示得分统计 ---
+                    st.markdown("---")
+                    st.subheader("📊 Performance Spectrum")
+                    scores = result.get('scores', {})
+                    df = pd.DataFrame({"Metric": list(scores.keys()), "Score": list(scores.values())}).set_index("Metric")
+                    if "Overall Score" in df.index:
+                        df_chart = df.drop(index="Overall Score")
+                        st.bar_chart(df_chart)
+                    
+                    # --- 2. 显示扣分详情  ---
+                    st.subheader("🚫 Deduction Details")
+                    for issue in result.get('deductions', []):
+                        with st.expander(f"⚠️ {issue.get('point')} | {issue.get('category')}"):
+                            st.write(f"**Reason:** {issue.get('reason')}")
+                            st.write(f"**Location:** `{issue.get('location')}`")
+
+                    # --- 3. 显示修改建议 ---
+                    st.subheader("💡 Refined Suggestion")
+                    st.info(result.get('refined_suggestion', "No suggestion available."))
+
+                    # --- 4. 关键：下载 PDF 报告按钮 ---
+                    st.markdown("---")
+                    try:
+                        pdf_data = generate_pdf(result)
+                        st.download_button(
+                            label="📥 Download PDF Audit Report",
+                            data=pdf_data,
+                            file_name="Prism_QA_Audit_Report.pdf",
+                            mime="application/pdf"
+                        )
+                        st.success("Report ready for download!")
+                    except Exception as e:
+                        st.error(f"PDF Export Error: {e}")
+                else:
+                    st.error("Audit failed. Please check your API connection.")
         else:
-            st.warning("Please provide both source and target texts.")
-
-def render_visuals(data):
-    """[ZH] 处理可视化逻辑 [EN] Handle visualization logic"""
-    st.success("✅ Audit Completed Successfully")
-
-    # --- [ZH] 1. 得分频谱可视化 (The Visual Scoreboard) ---
-    st.subheader("📊 Performance Spectrum")
-    scores = data.get('scores', {})
-    
-    # [ZH] 构造 Pandas 数据框用于绘图 [EN] Construct Pandas DataFrame for plotting
-    df = pd.DataFrame({
-        "Dimension": list(scores.keys()),
-        "Score": list(scores.values())
-    }).set_index("Dimension")
-    
-    # [ZH] 过滤掉 Total 分数以显示纯维度对比 [EN] Filter Total for pure dimension comparison
-    df_plot = df.drop(index="Total") if "Total" in df.index else df
-    st.bar_chart(df_plot)
-
-    # --- [ZH] 2. 关键指标卡片 [EN] Key Metrics Cards ---
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Overall Score", f"{scores.get('Total', 0)}/100")
-    c2.metric("Accuracy", f"{scores.get('Accuracy', 0)}%")
-    c3.metric("Fluency", f"{scores.get('Fluency', 0)}%")
-
-    # --- [ZH] 3. 详细扣分项 (Deduction Breakdown) ---
-    st.subheader("🚫 Deduction Details")
-    deductions = data.get('deductions', [])
-    if not deductions:
-        st.info("No significant errors found. Excellent translation!")
-    else:
-        for item in deductions:
-            with st.expander(f"⚠️ -{item.get('points')} pts | {item.get('category')}"):
-                st.write(f"**Reason:** {item.get('reason')}")
-                st.write(f"**Location:** `{item.get('location')}`")
-
-    # --- [ZH] 4. 优化建议 [EN] Refined Translation ---
-    st.divider()
-    st.subheader("💡 Refined Suggestion")
-    st.info(data.get('refined_translation', ""))
-    st.caption(data.get('comment_zh', ""))
+            st.warning("Please enter both source and target text.")
 
 if __name__ == "__main__":
     main()
-
-from fpdf import FPDF
-import io
-
-def generate_pdf(data):
-    """[ZH] 将审计结果转换为 PDF 字节流 [EN] Convert audit results to PDF byte stream"""
-    pdf = FPDF()
-    pdf.add_page()
-    
-    # [ZH] 设置标题 [EN] Set Title
-    pdf.set_font("Arial", 'B', 16)
-    pdf.cell(200, 10, txt="Prism-QA Audit Report", ln=True, align='C')
-    pdf.ln(10)
-
-    # [ZH] 写入得分 [EN] Write Scores
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(200, 10, txt="1. Performance Scores", ln=True)
-    pdf.set_font("Arial", '', 11)
-    for k, v in data.get('scores', {}).items():
-        pdf.cell(200, 8, txt=f"- {k}: {v}", ln=True)
-    pdf.ln(5)
-
-    # [ZH] 写入改进建议 [EN] Write Refinement
-    pdf.set_font("Arial", 'B', 12)
-    pdf.cell(200, 10, txt="2. Refined Suggestion", ln=True)
-    pdf.set_font("Arial", '', 11)
-    pdf.multi_cell(0, 8, txt=data.get('refined_translation', ''))
-    
-    # [ZH] 返回字节流供 Streamlit 下载 [EN] Return bytes for Streamlit download
-    return pdf.output(dest='S').encode('latin-1')
-
-# --- 在 render_visuals 函数的末尾添加以下代码 ---
-# [ZH] 添加下载按钮 [EN] Add download button
-def render_visuals(data):
-    # ... 原有的可视化代码 ...
-    
-    st.divider()
-    pdf_bytes = generate_pdf(data)
-    st.download_button(
-        label="📥 Download PDF Report",
-        data=pdf_bytes,
-        file_name="Prism_QA_Report.pdf",
-        mime="application/pdf",
-        use_container_width=True
-    )
