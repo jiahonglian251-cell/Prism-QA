@@ -34,3 +34,14 @@ Prism-QA is an industrial-grade TQA tool powered by DeepSeek-V3, featuring multi
 在终端运行以下命令：
 ```bash
 pip install streamlit pandas fpdf python-dotenv requests
+
+### 2. 环境配置 | Configuration
+请在根目录手动创建 .env 文件，并填入以下内容：
+```bash
+DEEPSEEK_API_KEY=你的_DEEPSEEK_实际密钥
+USE_PROXY=True
+
+### 3. 启动应用 | Launch Dashboard
+终端内输入以下以运行：
+```bash
+streamlit run app.py
