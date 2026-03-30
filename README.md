@@ -47,3 +47,21 @@ DEEPSEEK_API_KEY=你的_DEEPSEEK_实际密钥
 ```bash
 streamlit run app.py
 ```
+
+---
+
+## ✨ 核心特性与成果展示 | Showcasing Results
+
+### 1. 交互式审计面板 | Interactive Dashboard
+启动后，你将看到一个简洁的 Web 界面，只需输入原文和译文即可开始审计。
+
+![Main Dashboard](./assets/dashboard.png)
+
+---
+
+### 2. 性能频谱可视化 | Visual Spectrum
+Prism-QA 会根据 DeepSeek 的 JSON 返回结果，通过 `Pandas` 自动生成多维度的得分柱状图。
+
+![Scores Visual Spectrum](./assets/spectrum.png)
+
+---
